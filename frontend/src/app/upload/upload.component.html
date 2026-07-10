@@ -1,0 +1,40 @@
+<div class="card upload-card fade-in">
+  <div class="upload-dropzone" [class.file-selected]="selectedFile" [class.uploading]="isUploading">
+    <input type="file" id="file-upload" class="file-input" (change)="onFileChange($event)" accept=".pdf,.docx,.txt,.md" [disabled]="isUploading" />
+    <label for="file-upload" class="dropzone-label">
+      <div class="upload-icon-wrapper">
+        <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+          <polyline points="17 8 12 3 7 8"></polyline>
+          <line x1="12" y1="3" x2="12" y2="15"></line>
+        </svg>
+      </div>
+      <div class="dropzone-text" *ngIf="!selectedFile">
+        <span class="highlight">Click to upload</span> or drag and drop
+        <p class="sub-text">PDF, DOCX, TXT, or MD up to 10MB</p>
+      </div>
+      <div class="dropzone-text" *ngIf="selectedFile">
+        <span class="file-name">{{ selectedFile.name }}</span>
+        <p class="sub-text">{{ (selectedFile.size / 1024).toFixed(1) }} KB</p>
+      </div>
+    </label>
+  </div>
+  
+  <div class="action-bar flex-end">
+    <div *ngIf="message" class="status-msg" [class.success]="message.includes('succeeded')" [class.error]="message.includes('failed') || message.includes('first')" [class.uploading]="isUploading">
+      <span>{{ message }}</span>
+    </div>
+    <button type="button" class="primary upload-btn" (click)="upload()" [disabled]="!selectedFile || isUploading">
+      <svg *ngIf="!isUploading" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+        <polyline points="17 8 12 3 7 8"></polyline>
+        <line x1="12" y1="3" x2="12" y2="15"></line>
+      </svg>
+      <svg *ngIf="isUploading" class="spinner" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+        <circle cx="12" cy="12" r="10" stroke="rgba(255,255,255,0.25)"></circle>
+        <path d="M12 2a10 10 0 0 1 10 10" stroke="white"></path>
+      </svg>
+      <span>{{ isUploading ? 'Indexing...' : 'Index Document' }}</span>
+    </button>
+  </div>
+</div>

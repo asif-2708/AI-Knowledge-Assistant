@@ -1,0 +1,52 @@
+<div class="card auth-card">
+  <div class="auth-header">
+    <div class="logo">
+      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-indigo-500">
+        <circle cx="12" cy="12" r="10"></circle>
+        <path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"></path>
+        <path d="M2 12h20"></path>
+      </svg>
+    </div>
+    <h2>Create an account</h2>
+    <p>Sign up to start chatting with your documents.</p>
+  </div>
+
+  <form [formGroup]="registerForm" (ngSubmit)="onSubmit()">
+    <div class="form-row">
+      <label>Username</label>
+      <input formControlName="username" placeholder="Choose a username" [class.invalid-input]="username?.invalid && (username?.touched || isSubmitted)" />
+      <div *ngIf="username?.invalid && (username?.touched || isSubmitted)" class="error-text">
+        <span>Username is required.</span>
+      </div>
+    </div>
+    <div class="form-row">
+      <label>Email address</label>
+      <input type="email" formControlName="email" placeholder="you@example.com" [class.invalid-input]="email?.invalid && (email?.touched || isSubmitted)" />
+      <div *ngIf="email?.invalid && (email?.touched || isSubmitted)" class="error-text">
+        <span *ngIf="email?.errors?.['required']">Email is required.</span>
+        <span *ngIf="email?.errors?.['email']">Invalid email address.</span>
+      </div>
+    </div>
+    <div class="form-row">
+      <label>Password</label>
+      <input type="password" formControlName="password" placeholder="Min 6 characters" [class.invalid-input]="password?.invalid && (password?.touched || isSubmitted)" />
+      <div *ngIf="password?.invalid && (password?.touched || isSubmitted)" class="error-text">
+        <span *ngIf="password?.errors?.['required']">Password is required.</span>
+        <span *ngIf="password?.errors?.['minlength']">Password must be at least 6 characters.</span>
+      </div>
+    </div>
+
+    <div class="form-actions">
+      <button type="submit" class="primary w-full" [disabled]="isLoading">
+        {{ isLoading ? 'Creating account...' : 'Sign up' }}
+      </button>
+    </div>
+
+    <div *ngIf="error" class="error-msg">{{ error }}</div>
+    <div *ngIf="success" class="success-msg">{{ success }}</div>
+  </form>
+
+  <div class="auth-footer">
+    <p>Already have an account? <a href="javascript:void(0)" (click)="switchToLogin.emit()">Sign in</a></p>
+  </div>
+</div>

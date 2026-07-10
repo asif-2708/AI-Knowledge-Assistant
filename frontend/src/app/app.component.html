@@ -1,0 +1,36 @@
+<div class="app-shell" [class.authenticated]="authService.authState$ | async">
+  <div class="sidebar-container" *ngIf="authService.authState$ | async">
+    <app-sidebar [activeTab]="activeTab" (tabChange)="setActiveTab($event)"></app-sidebar>
+  </div>
+  
+  <main class="main-panel fade-in">
+    <ng-container *ngIf="(authService.authState$ | async) === false; else loggedIn">
+      <div class="auth-container">
+        <app-login *ngIf="authView === 'login'" (switchToRegister)="authView = 'register'"></app-login>
+        <app-register *ngIf="authView === 'register'" (switchToLogin)="authView = 'login'"></app-register>
+      </div>
+    </ng-container>
+
+    <ng-template #loggedIn>
+      <div [ngSwitch]="activeTab">
+        <!-- Dashboard Tab -->
+        <div *ngSwitchCase="'dashboard'" class="fade-in">
+          <div class="dashboard-content">
+            <app-upload></app-upload>
+            <app-chat></app-chat>
+          </div>
+        </div>
+
+        <!-- Documents Tab -->
+        <div *ngSwitchCase="'documents'" class="fade-in">
+          <app-documents></app-documents>
+        </div>
+
+        <!-- Chat History Tab -->
+        <div *ngSwitchCase="'chat-history'" class="fade-in">
+          <app-chat-history></app-chat-history>
+        </div>
+      </div>
+    </ng-template>
+  </main>
+</div>

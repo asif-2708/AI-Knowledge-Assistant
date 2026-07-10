@@ -1,0 +1,174 @@
+.upload-card {
+  padding: 40px;
+  background-color: transparent; /* Use global card style */
+  box-shadow: none; /* override card default if needed, but we keep it */
+}
+
+.upload-dropzone {
+  position: relative;
+  border: 2px dashed rgba(99, 102, 241, 0.4);
+  background: rgba(99, 102, 241, 0.02);
+  border-radius: var(--radius-md);
+  padding: 48px 24px;
+  text-align: center;
+  transition: var(--transition);
+  cursor: pointer;
+  overflow: hidden;
+}
+
+.upload-dropzone::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.05) 0%, rgba(139, 92, 246, 0.05) 100%);
+  opacity: 0;
+  transition: var(--transition);
+}
+
+.upload-dropzone:hover::before {
+  opacity: 1;
+}
+
+.upload-dropzone:hover {
+  border-color: var(--primary);
+  transform: scale(1.01);
+}
+
+.upload-dropzone.file-selected {
+  border-color: var(--success);
+  background: rgba(16, 185, 129, 0.03);
+}
+
+.upload-dropzone.uploading {
+  opacity: 0.7;
+  pointer-events: none;
+  border-color: var(--border-color);
+}
+
+.file-input {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+  z-index: 2;
+}
+
+.dropzone-label {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  cursor: pointer;
+  width: 100%;
+  position: relative;
+  z-index: 1;
+}
+
+.upload-icon-wrapper {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--primary);
+  box-shadow: 0 4px 14px rgba(99, 102, 241, 0.15);
+  border: 1px solid rgba(99, 102, 241, 0.1);
+  transition: var(--transition);
+}
+
+.upload-dropzone:hover .upload-icon-wrapper {
+  transform: translateY(-4px) scale(1.05);
+  box-shadow: 0 8px 25px rgba(99, 102, 241, 0.25);
+}
+
+.upload-dropzone.file-selected .upload-icon-wrapper {
+  color: var(--success);
+  box-shadow: 0 4px 14px rgba(16, 185, 129, 0.15);
+  border-color: rgba(16, 185, 129, 0.2);
+}
+
+.dropzone-text {
+  font-size: 1.05rem;
+  color: var(--text-main);
+  font-weight: 500;
+}
+
+.dropzone-text .highlight {
+  color: var(--primary);
+  font-weight: 600;
+}
+
+.dropzone-text .file-name {
+  color: var(--success);
+  font-weight: 700;
+  font-size: 1.1rem;
+  display: block;
+  margin-bottom: 6px;
+}
+
+.dropzone-text .sub-text {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  margin-top: 8px;
+}
+
+.action-bar.flex-end {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 32px;
+}
+
+.upload-btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 28px;
+  font-size: 1rem;
+}
+
+.status-msg {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  border-radius: var(--radius-full);
+  font-size: 0.9rem;
+  font-weight: 500;
+  animation: slideUp 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: var(--shadow-sm);
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.status-msg.uploading {
+  background: rgba(99, 102, 241, 0.1);
+  color: var(--primary);
+}
+
+.status-msg.success {
+  background: rgba(16, 185, 129, 0.1);
+  color: var(--success);
+}
+
+.status-msg.error {
+  background: rgba(239, 68, 68, 0.1);
+  color: var(--danger);
+}
+
+.spinner {
+  animation: rotate 1s linear infinite;
+}
+
+@keyframes rotate {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}

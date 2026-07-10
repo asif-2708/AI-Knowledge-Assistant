@@ -1,0 +1,128 @@
+.history-card {
+  padding: 40px;
+  background-color: transparent;
+  box-shadow: none;
+}
+
+.card-header-flex {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 32px;
+}
+
+.header-text h2 {
+  font-size: 24px;
+  margin-bottom: 4px;
+}
+
+.header-text p {
+  color: var(--text-muted);
+  margin: 0;
+  font-size: 15px;
+}
+
+.clear-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--danger);
+  border-color: rgba(239, 68, 68, 0.3);
+}
+
+.clear-btn:hover:not(:disabled) {
+  background: rgba(239, 68, 68, 0.1);
+  border-color: rgba(239, 68, 68, 0.5);
+}
+
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 64px 32px;
+  text-align: center;
+  background: var(--bg-surface);
+  border: 1px dashed var(--border-color);
+  border-radius: var(--radius-md);
+}
+
+.empty-icon {
+  width: 80px;
+  height: 80px;
+  border-radius: 50%;
+  background: rgba(99, 102, 241, 0.1);
+  color: var(--primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 24px;
+}
+
+.empty-state h3 {
+  font-size: 20px;
+  margin-bottom: 8px;
+}
+
+.empty-state p {
+  color: var(--text-muted);
+}
+
+.history-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.history-item {
+  background: var(--bg-surface);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-md);
+  padding: 24px;
+  box-shadow: var(--shadow-sm);
+}
+
+.query-bubble {
+  margin-bottom: 16px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.query-bubble .label {
+  display: block;
+  font-size: 13px;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.query-bubble strong {
+  font-size: 16px;
+  color: var(--text-main);
+}
+
+.answer-bubble {
+  position: relative;
+}
+
+.ai-badge {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--primary);
+  font-weight: 600;
+  font-size: 13px;
+  margin-bottom: 12px;
+}
+
+.answer-bubble p {
+  color: var(--text-main);
+  line-height: 1.6;
+  margin: 0;
+  white-space: pre-wrap;
+}
+

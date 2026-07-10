@@ -1,0 +1,71 @@
+<div class="card chat-card fade-in">
+  <div class="chat-header">
+    <div class="header-icon">
+      <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path>
+      </svg>
+    </div>
+    <div class="header-text">
+      <h2>AI Search & Query</h2>
+      <p>Ask questions about your uploaded documents.</p>
+    </div>
+  </div>
+  
+  <form [formGroup]="chatForm" (ngSubmit)="ask()" class="chat-form">
+    <div class="textarea-wrapper" [class.focused]="chatForm.get('question')?.touched">
+      <textarea formControlName="question" rows="3" placeholder="What would you like to know?"></textarea>
+      
+      <div class="textarea-footer">
+        <span class="tiptext">AI will synthesize answers using your context.</span>
+        <button type="submit" class="primary ask-btn" [disabled]="isLoading || !chatForm.valid">
+          <svg *ngIf="!isLoading" class="btn-icon" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="22" y1="2" x2="11" y2="13"></line>
+            <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+          </svg>
+          <svg *ngIf="isLoading" class="spinner" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round">
+            <circle cx="12" cy="12" r="10" stroke="rgba(255,255,255,0.2)"></circle>
+            <path d="M12 2a10 10 0 0 1 10 10" stroke="white"></path>
+          </svg>
+          <span>{{ isLoading ? 'Thinking...' : 'Ask AI' }}</span>
+        </button>
+      </div>
+    </div>
+  </form>
+
+  <!-- Loading State -->
+  <div *ngIf="isLoading" class="loading-state fade-in">
+    <div class="loader-dots">
+      <span class="dot"></span>
+      <span class="dot"></span>
+      <span class="dot"></span>
+    </div>
+    <p>Searching knowledge base...</p>
+  </div>
+
+  <!-- Answer Response -->
+  <div *ngIf="answer && !isLoading" class="answer-card fade-in">
+    <div class="answer-header">
+      <div class="ai-badge">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 2a10 10 0 0 1 7.54 16.59c-.24.25-.62.3-.92.14l-.08-.04a1 1 0 0 0-1 0l-.33.16a2 2 0 0 1-2.07-.18 2 2 0 0 0-2.27 0 2 2 0 0 1-2.07.18l-.33-.16a1 1 0 0 0-1 0l-.08.04c-.3.16-.68.1-.92-.14A10 10 0 0 1 12 2z"></path>
+          <path d="M12 18v4"></path>
+          <path d="M4.93 4.93l1.41 1.41"></path>
+          <path d="M17.66 6.34l1.41-1.41"></path>
+          <path d="M2 12h4"></path>
+          <path d="M18 12h4"></path>
+        </svg>
+        <span>AI Response</span>
+      </div>
+      <button class="secondary copy-btn" (click)="copyAnswer()" type="button" title="Copy to clipboard">
+        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+          <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+        </svg>
+      </button>
+    </div>
+    <div class="answer-body">
+      <p>{{ answer }}</p>
+    </div>
+  </div>
+</div>
+

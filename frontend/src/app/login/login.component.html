@@ -1,0 +1,40 @@
+<div class="card auth-card">
+  <div class="auth-header">
+    <div class="logo">
+      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-indigo-500">
+        <circle cx="12" cy="12" r="10"></circle>
+        <path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"></path>
+        <path d="M2 12h20"></path>
+      </svg>
+    </div>
+    <h2>Welcome back</h2>
+    <p>Sign in to manage and query your documents.</p>
+  </div>
+
+  <form [formGroup]="loginForm" (ngSubmit)="onSubmit()">
+    <div class="form-row">
+      <label>Username</label>
+      <input formControlName="username" [class.invalid-input]="username?.invalid && (username?.touched || isSubmitted)" />
+      <div *ngIf="username?.invalid && (username?.touched || isSubmitted)" class="error-text">
+        <span>Username is required.</span>
+      </div>
+    </div>
+    <div class="form-row">
+      <label>Password</label>
+      <input type="password" formControlName="password" [class.invalid-input]="password?.invalid && (password?.touched || isSubmitted)" />
+      <div *ngIf="password?.invalid && (password?.touched || isSubmitted)" class="error-text">
+        <span>Password is required.</span>
+      </div>
+    </div>
+
+    <div class="form-actions">
+      <button type="submit" class="primary w-full" [disabled]="isLoading">{{ isLoading ? 'Signing in...' : 'Sign in' }}</button>
+    </div>
+
+    <div *ngIf="error" class="error-msg">{{ error }}</div>
+  </form>
+
+  <div class="auth-footer">
+    <p>Don't have an account? <a href="javascript:void(0)" (click)="switchToRegister.emit()">Register</a></p>
+  </div>
+</div>
