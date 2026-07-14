@@ -1,11 +1,13 @@
 from math import sqrt
 from typing import List
+import numpy as np
 
 from sqlalchemy.orm import Session
 
 from ..database import models
 from ..llm.openai_service import OpenAIService
 from ..llm.prompt import build_rag_prompt, build_summary_prompt
+from ..core.guardrails import ContentGuardrails
 
 
 class ChatService:
@@ -26,7 +28,11 @@ class ChatService:
         is_api_query = any(word in query_lower for word in [
             "api", "apis", "endpoint", "endpoints", "method", "methods", "route", "routes", "url", "urls"
         ])
-        scored = []
+        
+        # Filter chunks and prepare list for batch similarity calculation
+        valid_chunks = []
+        embeddings_list = []
+        
         for chunk in chunks:
             text_str = chunk.text
             is_toc_chunk = False
@@ -48,15 +54,37 @@ class ChatService:
                     emb = json.loads(emb)
                 except Exception:
                     pass
-            if isinstance(emb, list):
-                score = self._cosine_similarity(query_embedding, emb)
+            
+            if isinstance(emb, list) and len(emb) == len(query_embedding):
+                valid_chunks.append((chunk, is_toc_chunk, text_str))
+                embeddings_list.append(emb)
+
+        scored = []
+        if valid_chunks:
+            # Batch compute similarities using NumPy
+            query_arr = np.array(query_embedding, dtype=np.float32)
+            emb_arr = np.array(embeddings_list, dtype=np.float32)  # shape (N, D)
+            
+            query_norm = np.linalg.norm(query_arr)
+            emb_norms = np.linalg.norm(emb_arr, axis=1)  # shape (N,)
+            
+            if query_norm > 0:
+                dot_products = np.dot(emb_arr, query_arr)
+                scores = np.where(emb_norms > 0, dot_products / (query_norm * emb_norms), 0.0)
+            else:
+                scores = np.zeros(len(valid_chunks))
+                
+            for idx, (chunk, is_toc_chunk, text_str) in enumerate(valid_chunks):
+                score = float(scores[idx])
                 if is_api_query and text_str:
+                    has_api_endpoints = any(verb in text_str for verb in ["GET ", "POST ", "PUT ", "DELETE "])
                     if is_toc_chunk:
                         # Give a major boost to Table of Contents chunks for API queries to prioritize structured index
                         score += 0.40
                     elif has_api_endpoints:
                         score += 0.15
                 scored.append((score, chunk))
+
         # Stable sort: primary sort on similarity score descending, secondary sort on chunk id ascending
         scored.sort(key=lambda item: (item[0], -item[1].id), reverse=True)
         
@@ -75,6 +103,11 @@ class ChatService:
         return [chunk for _, chunk in top_scored]
 
     async def answer_question(self, user_id: int, question: str) -> str:
+        # Check input guardrails
+        is_safe, msg = ContentGuardrails.validate_prompt(question)
+        if not is_safe:
+            return msg
+
         has_docs = self.db.query(models.Document).filter(models.Document.owner_id == user_id).first() is not None
         if has_docs:
             chunks = self.retrieve_relevant_chunks(question, user_id=user_id)
@@ -92,9 +125,18 @@ class ChatService:
             "that is not answered in the documents, you must use your general knowledge or invoke the appropriate tool "
             "to answer the question. Do NOT refuse to answer general queries just because they are not in the documents."
         )
-        return await self.openai_service.async_chat_completion(system_prompt, prompt)
+        raw_res = await self.openai_service.async_chat_completion(system_prompt, prompt)
+        
+        # Sanitize output guardrails
+        return ContentGuardrails.sanitize_output(raw_res)
 
     async def stream_answer(self, user_id: int, question: str):
+        # Check input guardrails
+        is_safe, msg = ContentGuardrails.validate_prompt(question)
+        if not is_safe:
+            yield msg
+            return
+
         has_docs = self.db.query(models.Document).filter(models.Document.owner_id == user_id).first() is not None
         if has_docs:
             chunks = self.retrieve_relevant_chunks(question, user_id=user_id)
@@ -113,16 +155,21 @@ class ChatService:
             "to answer the question. Do NOT refuse to answer general queries just because they are not in the documents."
         )
         async for chunk in self.openai_service.async_stream_chat_completion(system_prompt, prompt):
-            yield chunk
+            # Sanitize output guardrails
+            yield ContentGuardrails.sanitize_output(chunk)
 
     def _cosine_similarity(self, a: list[float], b: list[float]) -> float:
         if not a or not b or len(a) != len(b):
             return 0.0
-        dot = sum(x * y for x, y in zip(a, b))
-        norm_a = sqrt(sum(x * x for x in a))
-        norm_b = sqrt(sum(y * y for y in b))
-        return dot / (norm_a * norm_b) if norm_a and norm_b else 0.0
+        arr_a = np.array(a, dtype=np.float32)
+        arr_b = np.array(b, dtype=np.float32)
+        norm_a = np.linalg.norm(arr_a)
+        norm_b = np.linalg.norm(arr_b)
+        if norm_a == 0 or norm_b == 0:
+            return 0.0
+        return float(np.dot(arr_a, arr_b) / (norm_a * norm_b))
 
     def summarize_text(self, text: str) -> str:
         prompt = build_summary_prompt(text)
         return self.openai_service.chat_completion("Summarize the text below.", prompt)
+

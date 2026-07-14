@@ -32,6 +32,10 @@ app.include_router(chat.router)
 app.include_router(document.router)
 app.include_router(mcp.router)
 
+from .mcp.server import mcp_server
+mcp_app = mcp_server.sse_app(mount_path="/mcp-server")
+app.mount("/mcp-server", mcp_app)
+
 
 @app.get("/")
 async def read_root():

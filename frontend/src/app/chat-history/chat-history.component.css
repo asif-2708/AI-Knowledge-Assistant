@@ -78,6 +78,7 @@
 }
 
 .history-item {
+  position: relative;
   background: var(--bg-surface);
   border: 1px solid var(--glass-border);
   border-radius: var(--radius-md);
@@ -125,4 +126,47 @@
   margin: 0;
   white-space: pre-wrap;
 }
+
+.delete-item-btn {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  background: transparent;
+  border: none;
+  color: var(--text-light);
+  cursor: pointer;
+  padding: 8px;
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: var(--transition);
+}
+
+.delete-item-btn:hover {
+  background: rgba(239, 68, 68, 0.1);
+  color: var(--danger);
+}
+
+.expand-toggle-btn {
+  background: transparent;
+  border: none;
+  color: var(--primary);
+  font-weight: 500;
+  font-size: 13px;
+  cursor: pointer;
+  padding: 6px 12px;
+  margin-top: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: var(--radius-sm);
+  transition: var(--transition);
+}
+
+.expand-toggle-btn:hover {
+  background: rgba(99, 102, 241, 0.08);
+}
+
+
 

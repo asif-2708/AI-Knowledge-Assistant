@@ -18,6 +18,7 @@ interface LoginResponse {
 @Injectable({ providedIn: 'root' })
 export class AuthService {
   private tokenKey = 'ai_knowledge_token';
+  private usernameKey = 'ai_knowledge_username';
   public authState$ = new BehaviorSubject<boolean>(this.isAuthenticated());
   public currentUser$ = new BehaviorSubject<UserResponse | null>(null);
 
@@ -34,6 +35,7 @@ export class AuthService {
     return this.http.post<LoginResponse>(`${environment.apiUrl}/auth/login`, form).pipe(
       tap((response) => {
         sessionStorage.setItem(this.tokenKey, response.access_token);
+        sessionStorage.setItem(this.usernameKey, username);
         this.authState$.next(true);
       }),
       tap(() => {
@@ -45,6 +47,9 @@ export class AuthService {
   fetchCurrentUser(): Observable<UserResponse | null> {
     return this.http.get<UserResponse>(`${environment.apiUrl}/auth/me`).pipe(
       tap((user) => {
+        if (user && user.username) {
+          sessionStorage.setItem(this.usernameKey, user.username);
+        }
         this.currentUser$.next(user);
       }),
       catchError((err) => {
@@ -61,12 +66,17 @@ export class AuthService {
 
   logout(): void {
     sessionStorage.removeItem(this.tokenKey);
+    sessionStorage.removeItem(this.usernameKey);
     this.currentUser$.next(null);
     this.authState$.next(false);
   }
 
   getToken(): string | null {
     return sessionStorage.getItem(this.tokenKey);
+  }
+
+  getUsername(): string | null {
+    return sessionStorage.getItem(this.usernameKey);
   }
 
   isAuthenticated(): boolean {

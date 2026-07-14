@@ -2,6 +2,7 @@ import { HttpClient } from '@angular/common/http';
 import { Injectable } from '@angular/core';
 import { Observable } from 'rxjs';
 import { environment } from '../../environments/environment';
+import { AuthService } from './auth.service';
 
 export interface ChatMessage {
   question: string;
@@ -17,7 +18,7 @@ interface ChatResponse {
 export class ChatService {
   private apiUrl = environment.apiUrl;
 
-  constructor(private http: HttpClient) {}
+  constructor(private http: HttpClient, private authService: AuthService) {}
 
   query(question: string): Observable<ChatResponse> {
     return this.http.post<ChatResponse>(`${this.apiUrl}/chat/query`, { question });
@@ -74,9 +75,15 @@ export class ChatService {
     });
   }
 
+  private getHistoryKey(): string {
+    const username = this.authService.getUsername();
+    return username ? `ai_knowledge_chat_history_${username}` : 'ai_knowledge_chat_history_guest';
+  }
+
   getHistory(): ChatMessage[] {
     try {
-      const data = localStorage.getItem('ai_knowledge_chat_history');
+      const key = this.getHistoryKey();
+      const data = localStorage.getItem(key);
       return data ? JSON.parse(data) : [];
     } catch (e) {
       console.error('Error parsing chat history:', e);
@@ -85,12 +92,23 @@ export class ChatService {
   }
 
   saveToHistory(question: string, answer: string): void {
+    const key = this.getHistoryKey();
     const history = this.getHistory();
     history.unshift({ question, answer, timestamp: new Date().toISOString() });
-    localStorage.setItem('ai_knowledge_chat_history', JSON.stringify(history));
+    localStorage.setItem(key, JSON.stringify(history));
   }
 
   clearHistory(): void {
-    localStorage.removeItem('ai_knowledge_chat_history');
+    const key = this.getHistoryKey();
+    localStorage.removeItem(key);
+  }
+
+  deleteFromHistory(index: number): void {
+    const key = this.getHistoryKey();
+    const history = this.getHistory();
+    if (index >= 0 && index < history.length) {
+      history.splice(index, 1);
+      localStorage.setItem(key, JSON.stringify(history));
+    }
   }
 }

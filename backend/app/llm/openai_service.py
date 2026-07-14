@@ -1,8 +1,9 @@
 import os
-from typing import Iterable
+from typing import Iterable, Generator
 import logging
 import json
 import inspect
+import httpx
 
 from openai import OpenAI, AsyncOpenAI
 import numpy as np
@@ -61,11 +62,13 @@ AVAILABLE_TOOLS = [
     }
 ]
 
+
 TOOL_FUNCTIONS = {
     "get_current_weather": get_current_weather,
     "get_current_datetime": get_current_datetime,
     "calculator": calculator
 }
+
 
 async def execute_tool(name: str, args: dict) -> str:
     func = TOOL_FUNCTIONS.get(name)
@@ -80,6 +83,53 @@ async def execute_tool(name: str, args: dict) -> str:
         return f"Error executing tool '{name}': {str(e)}"
 
 
+def _openai_to_anthropic_messages(openai_messages: list) -> tuple[str, list]:
+    anthropic_messages = []
+    system_prompt = ""
+    for msg in openai_messages:
+        role = msg["role"]
+        if role == "system":
+            system_prompt = msg["content"]
+        elif role == "user":
+            anthropic_messages.append({"role": "user", "content": msg["content"]})
+        elif role == "assistant":
+            content = []
+            if msg.get("content"):
+                content.append({"type": "text", "text": msg["content"]})
+            if msg.get("tool_calls"):
+                for tc in msg["tool_calls"]:
+                    tc_id = tc["id"] if isinstance(tc, dict) else tc.id
+                    tc_name = tc["function"]["name"] if isinstance(tc, dict) else tc.function.name
+                    tc_args = tc["function"]["arguments"] if isinstance(tc, dict) else tc.function.arguments
+                    if isinstance(tc_args, str):
+                        try:
+                            tc_args = json.loads(tc_args)
+                        except Exception:
+                            tc_args = {}
+                    content.append({
+                        "type": "tool_use",
+                        "id": tc_id,
+                        "name": tc_name,
+                        "input": tc_args
+                    })
+            anthropic_messages.append({"role": "assistant", "content": content})
+        elif role == "tool":
+            tool_result = {
+                "type": "tool_result",
+                "tool_use_id": msg["tool_call_id"],
+                "content": msg["content"]
+            }
+            if anthropic_messages and anthropic_messages[-1]["role"] == "user":
+                last_msg = anthropic_messages[-1]
+                if isinstance(last_msg["content"], list):
+                    last_msg["content"].append(tool_result)
+                else:
+                    last_msg["content"] = [{"type": "text", "text": last_msg["content"]}, tool_result]
+            else:
+                anthropic_messages.append({"role": "user", "content": [tool_result]})
+    return system_prompt, anthropic_messages
+
+
 class OpenAIService:
     _local_model = None
     _local_model_loaded = False
@@ -87,10 +137,28 @@ class OpenAIService:
     def __init__(self):
         api_key = settings.openai_api_key or os.environ.get("OPENAI_API_KEY", "")
         
-        # Check if the key is a Google Gemini API key (starts with 'AQ' or 'AIzaSy')
-        is_gemini = api_key.startswith("AQ") or api_key.startswith("AIzaSy")
-        
-        if is_gemini:
+        # Detect LLM Provider
+        if api_key.startswith("gsk_"):
+            self.provider = "groq"
+            self.chat_model = "llama-3.3-70b-versatile"
+            self.embedding_model = ""
+            self.client = OpenAI(
+                api_key=api_key,
+                base_url="https://api.groq.com/openai/v1"
+            )
+            self.async_client = AsyncOpenAI(
+                api_key=api_key,
+                base_url="https://api.groq.com/openai/v1"
+            )
+        elif api_key.startswith("sk-ant-"):
+            self.provider = "anthropic"
+            self.chat_model = "claude-3-5-sonnet-20241022"
+            self.embedding_model = ""
+            self.api_key = api_key
+            self.httpx_client = httpx.Client(timeout=30.0)
+            self.httpx_async_client = httpx.AsyncClient(timeout=30.0)
+        elif api_key.startswith("AQ") or api_key.startswith("AIzaSy"):
+            self.provider = "gemini"
             self.embedding_model = "gemini-embedding-001"
             self.chat_model = "gemini-2.5-flash"
             self.client = OpenAI(
@@ -102,13 +170,16 @@ class OpenAIService:
                 base_url="https://generativelanguage.googleapis.com/v1beta/openai/"
             )
         else:
+            self.provider = "openai"
             self.embedding_model = settings.embedding_model
             self.chat_model = settings.openai_model
             self.client = OpenAI(api_key=api_key)
             self.async_client = AsyncOpenAI(api_key=api_key)
-        # Initialize local embedding model if configured
+
+        # Initialize local embedding model if configured or if provider lacks embeddings API
+        needs_local = settings.use_local_embeddings or self.provider in ["groq", "anthropic"]
         self.local_model = None
-        if settings.use_local_embeddings:
+        if needs_local:
             if not OpenAIService._local_model_loaded:
                 try:
                     from sentence_transformers import SentenceTransformer
@@ -122,9 +193,8 @@ class OpenAIService:
             self.local_model = OpenAIService._local_model
 
     def embed_text(self, text: str) -> list[float]:
-        if self.local_model is not None and settings.use_local_embeddings:
+        if self.local_model is not None:
             vec = self.local_model.encode([text])
-            # SentenceTransformer returns numpy array; take first result
             return np.asarray(vec[0]).tolist()
         response = self.client.embeddings.create(model=self.embedding_model, input=text)
         return response.data[0].embedding
@@ -134,13 +204,10 @@ class OpenAIService:
         if not texts_list:
             return []
 
-        # If local model is available and enabled, compute embeddings locally
-        if self.local_model is not None and settings.use_local_embeddings:
+        if self.local_model is not None:
             vecs = self.local_model.encode(texts_list)
-            # vecs is an array shape (n, dim)
             return [np.asarray(v).tolist() for v in vecs]
 
-        # Otherwise, call remote API in safe batches
         batch_size = 10
         embeddings: list[list[float]] = []
         for i in range(0, len(texts_list), batch_size):
@@ -150,6 +217,25 @@ class OpenAIService:
         return embeddings
 
     def chat_completion(self, system_prompt: str, user_prompt: str) -> str:
+        if self.provider == "anthropic":
+            headers = {
+                "x-api-key": self.api_key,
+                "anthropic-version": "2023-06-01",
+                "content-type": "application/json"
+            }
+            body = {
+                "model": self.chat_model,
+                "max_tokens": 3000,
+                "system": system_prompt,
+                "messages": [
+                    {"role": "user", "content": user_prompt}
+                ],
+                "temperature": 0.0
+            }
+            response = self.httpx_client.post("https://api.anthropic.com/v1/messages", json=body, headers=headers)
+            response.raise_for_status()
+            return response.json()["content"][0]["text"].strip()
+
         response = self.client.chat.completions.create(
             model=self.chat_model,
             messages=[
@@ -161,7 +247,43 @@ class OpenAIService:
         )
         return response.choices[0].message.content.strip()
 
-    def stream_chat_completion(self, system_prompt: str, user_prompt: str):
+    def stream_chat_completion(self, system_prompt: str, user_prompt: str) -> Generator[str, None, None]:
+        if self.provider == "anthropic":
+            headers = {
+                "x-api-key": self.api_key,
+                "anthropic-version": "2023-06-01",
+                "content-type": "application/json"
+            }
+            body = {
+                "model": self.chat_model,
+                "max_tokens": 3000,
+                "system": system_prompt,
+                "messages": [
+                    {"role": "user", "content": user_prompt}
+                ],
+                "temperature": 0.0,
+                "stream": True
+            }
+            with self.httpx_client.stream("POST", "https://api.anthropic.com/v1/messages", json=body, headers=headers) as response:
+                response.raise_for_status()
+                current_event = None
+                for line in response.iter_lines():
+                    line = line.strip()
+                    if not line:
+                        continue
+                    if line.startswith("event:"):
+                        current_event = line[len("event:"):].strip()
+                    elif line.startswith("data:"):
+                        data_str = line[len("data:"):].strip()
+                        if current_event == "content_block_delta":
+                            try:
+                                data = json.loads(data_str)
+                                if data.get("delta", {}).get("type") == "text_delta":
+                                    yield data["delta"]["text"]
+                            except Exception:
+                                pass
+            return
+
         response = self.client.chat.completions.create(
             model=self.chat_model,
             messages=[
@@ -177,6 +299,9 @@ class OpenAIService:
                 yield event.choices[0].delta.content or ""
 
     async def async_chat_completion(self, system_prompt: str, user_prompt: str) -> str:
+        if self.provider == "anthropic":
+            return await self._anthropic_async_chat(system_prompt, user_prompt)
+
         messages = [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt},
@@ -223,7 +348,104 @@ class OpenAIService:
                 
         return "Error: Maximum tool call iterations reached."
 
+    async def _anthropic_async_chat(self, system_prompt: str, user_prompt: str) -> str:
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt},
+        ]
+        
+        headers = {
+            "x-api-key": self.api_key,
+            "anthropic-version": "2023-06-01",
+            "content-type": "application/json"
+        }
+        
+        anthropic_tools = [
+            {
+                "name": t["function"]["name"],
+                "description": t["function"]["description"],
+                "input_schema": t["function"]["parameters"]
+            } for t in AVAILABLE_TOOLS
+        ]
+        
+        try:
+            for _ in range(5):
+                sys_msg, ant_msgs = _openai_to_anthropic_messages(messages)
+                body = {
+                    "model": self.chat_model,
+                    "max_tokens": 3000,
+                    "system": sys_msg,
+                    "messages": ant_msgs,
+                    "temperature": 0.0,
+                    "tools": anthropic_tools
+                }
+                
+                response = await self.httpx_async_client.post(
+                    "https://api.anthropic.com/v1/messages", 
+                    json=body, 
+                    headers=headers
+                )
+                response.raise_for_status()
+                res_data = response.json()
+                
+                content_blocks = res_data.get("content", [])
+                text_content = ""
+                tool_calls = []
+                
+                for block in content_blocks:
+                    if block["type"] == "text":
+                        text_content += block["text"]
+                    elif block["type"] == "tool_use":
+                        tool_calls.append({
+                            "id": block["id"],
+                            "type": "function",
+                            "function": {
+                                "name": block["name"],
+                                "arguments": json.dumps(block["input"])
+                            }
+                        })
+                
+                assistant_msg = {
+                    "role": "assistant",
+                    "content": text_content if text_content else None
+                }
+                if tool_calls:
+                    assistant_msg["tool_calls"] = tool_calls
+                
+                messages.append(assistant_msg)
+                
+                if tool_calls:
+                    for tc in tool_calls:
+                        name = tc["function"]["name"]
+                        args = json.loads(tc["function"]["arguments"])
+                        result = await execute_tool(name, args)
+                        
+                        messages.append({
+                            "role": "tool",
+                            "tool_call_id": tc["id"],
+                            "name": name,
+                            "content": result
+                        })
+                    continue
+                else:
+                    return text_content.strip()
+        except Exception as e:
+            err_str = str(e)
+            if "429" in err_str or "quota" in err_str.lower() or "rate limit" in err_str.lower() or "exhausted" in err_str.lower():
+                return "You have reached your API quota limit. Please try again after your quota resets or when your API limits refresh."
+            elif "401" in err_str or "unauthenticated" in err_str.lower() or "authentication" in err_str.lower() or "unauthorized" in err_str.lower():
+                return "Authentication failed. The API key in backend/.env is invalid, inactive, or copied incorrectly. Please check your configuration."
+            logger.exception("Error in anthropic_async_chat: %s", e)
+            return f"An error occurred: {err_str}"
+            
+        return "Error: Maximum tool call iterations reached."
+
     async def async_stream_chat_completion(self, system_prompt: str, user_prompt: str):
+        if self.provider == "anthropic":
+            async for chunk in self._anthropic_async_stream_chat(system_prompt, user_prompt):
+                yield chunk
+            return
+
         messages = [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": user_prompt},
@@ -316,4 +538,143 @@ class OpenAIService:
             else:
                 logger.exception("Error in async_stream_chat_completion: %s", e)
                 yield f"An error occurred: {err_str}"
+
+    async def _anthropic_async_stream_chat(self, system_prompt: str, user_prompt: str):
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt},
+        ]
+        
+        headers = {
+            "x-api-key": self.api_key,
+            "anthropic-version": "2023-06-01",
+            "content-type": "application/json"
+        }
+        
+        anthropic_tools = [
+            {
+                "name": t["function"]["name"],
+                "description": t["function"]["description"],
+                "input_schema": t["function"]["parameters"]
+            } for t in AVAILABLE_TOOLS
+        ]
+        
+        try:
+            for _ in range(5):
+                sys_msg, ant_msgs = _openai_to_anthropic_messages(messages)
+                body = {
+                    "model": self.chat_model,
+                    "max_tokens": 3000,
+                    "system": sys_msg,
+                    "messages": ant_msgs,
+                    "temperature": 0.0,
+                    "tools": anthropic_tools,
+                    "stream": True
+                }
+                
+                tool_calls = []
+                text_content = []
+                current_tool_index = None
+                
+                req = self.httpx_async_client.build_request(
+                    "POST", "https://api.anthropic.com/v1/messages", 
+                    json=body, headers=headers
+                )
+                
+                response = await self.httpx_async_client.send(req, stream=True)
+                response.raise_for_status()
+                
+                current_event = None
+                async for line in response.aiter_lines():
+                    line = line.strip()
+                    if not line:
+                        continue
+                    if line.startswith("event:"):
+                        current_event = line[len("event:"):].strip()
+                    elif line.startswith("data:"):
+                        data_str = line[len("data:"):].strip()
+                        try:
+                            data = json.loads(data_str)
+                        except Exception:
+                            continue
+                        
+                        if current_event == "content_block_start":
+                            block = data.get("content_block", {})
+                            if block.get("type") == "tool_use":
+                                current_tool_index = data.get("index", 0)
+                                while len(tool_calls) <= current_tool_index:
+                                    tool_calls.append({
+                                        "id": "",
+                                        "name": "",
+                                        "arguments": ""
+                                    })
+                                tool_calls[current_tool_index]["id"] = block.get("id", "")
+                                tool_calls[current_tool_index]["name"] = block.get("name", "")
+                                
+                        elif current_event == "content_block_delta":
+                            delta = data.get("delta", {})
+                            if delta.get("type") == "text_delta":
+                                text_delta = delta.get("text", "")
+                                text_content.append(text_delta)
+                                yield text_delta
+                            elif delta.get("type") == "input_json_delta":
+                                json_delta = delta.get("partial_json", "")
+                                idx = data.get("index", 0)
+                                while len(tool_calls) <= idx:
+                                    tool_calls.append({
+                                        "id": "",
+                                        "name": "",
+                                        "arguments": ""
+                                    })
+                                tool_calls[idx]["arguments"] += json_delta
+                
+                await response.aclose()
+                
+                assistant_msg = {
+                    "role": "assistant",
+                    "content": "".join(text_content) if text_content else None
+                }
+                
+                formatted_tool_calls = []
+                for tc in tool_calls:
+                    if tc["id"] and tc["name"]:
+                        formatted_tool_calls.append({
+                            "id": tc["id"],
+                            "type": "function",
+                            "function": {
+                                "name": tc["name"],
+                                "arguments": tc["arguments"]
+                            }
+                        })
+                
+                if formatted_tool_calls:
+                    assistant_msg["tool_calls"] = formatted_tool_calls
+                
+                messages.append(assistant_msg)
+                
+                if formatted_tool_calls:
+                    for tc in formatted_tool_calls:
+                        name = tc["function"]["name"]
+                        args = json.loads(tc["function"]["arguments"])
+                        result = await execute_tool(name, args)
+                        
+                        messages.append({
+                            "role": "tool",
+                            "tool_call_id": tc["id"],
+                            "name": name,
+                            "content": result
+                        })
+                    continue
+                else:
+                    break
+        except Exception as e:
+            err_str = str(e)
+            if "429" in err_str or "quota" in err_str.lower() or "rate limit" in err_str.lower() or "exhausted" in err_str.lower():
+                yield "You have reached your API quota limit. Please try again after your quota resets or when your API limits refresh."
+            elif "401" in err_str or "unauthenticated" in err_str.lower() or "authentication" in err_str.lower() or "unauthorized" in err_str.lower():
+                yield "Authentication failed. The API key in backend/.env is invalid, inactive, or copied incorrectly. Please check your configuration."
+            else:
+                logger.exception("Error in anthropic_async_stream_chat: %s", e)
+                yield f"An error occurred: {err_str}"
+
 
