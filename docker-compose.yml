@@ -4,9 +4,9 @@ services:
     container_name: ai_knowledge_db
     restart: always
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-postgres}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-abc@123}
-      POSTGRES_DB: ${POSTGRES_DB:-ai_knowledge}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
     ports:
       - "5432:5432"
     volumes:
@@ -25,10 +25,10 @@ services:
     container_name: ai_knowledge_backend
     restart: always
     environment:
-      DATABASE_URL: ${DATABASE_URL:-postgresql://postgres:abc%40123@db:5432/ai_knowledge}
-      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
-      SECRET_KEY: ${SECRET_KEY:-change-this-secret-key-in-production}
-      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:4200}
+      DATABASE_URL: ${DATABASE_URL}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      SECRET_KEY: ${SECRET_KEY}
+      FRONTEND_URL: ${FRONTEND_URL}
     ports:
       - "8000:8000"
     volumes:
