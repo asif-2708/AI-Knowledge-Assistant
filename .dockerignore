@@ -1,0 +1,14 @@
+.git
+.gitignore
+.venv
+node_modules
+dist
+.angular
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+ai_knowledge.db
+uploads/*
+!.gitkeep
+.env

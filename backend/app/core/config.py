@@ -1,5 +1,5 @@
 import socket
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 def get_local_ip() -> str:
@@ -14,6 +14,12 @@ def get_local_ip() -> str:
 
 
 class Settings(BaseSettings):
+    model_config = SettingsConfigDict(
+        env_file=("../.env", ".env"),
+        env_file_encoding="utf-8",
+        extra="ignore"
+    )
+
     project_name: str = "AI Knowledge Assistant"
     debug: bool = True
     secret_key: str = "change-this-secret-key"
@@ -32,10 +38,6 @@ class Settings(BaseSettings):
         "http://127.0.0.1:4200",
         f"http://{get_local_ip()}:4200"
     ]
-
-    class Config:
-        env_file = ".env"
-        env_file_encoding = "utf-8"
 
 
 settings = Settings()

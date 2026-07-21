@@ -8,7 +8,7 @@ import psycopg2
 from ..core.config import settings
 
 
-def create_database_if_missing(url: str):
+def create_database_if_missing(url: str, quiet: bool = False):
     parsed_url = make_url(str(url))
     db_name = parsed_url.database
     if not db_name or db_name == "postgres":
@@ -31,7 +31,8 @@ def create_database_if_missing(url: str):
                 cursor.execute(f"CREATE DATABASE \"{db_name}\"")
         conn.close()
     except Exception as exc:
-        print("WARNING: Could not create or access configured database:", exc)
+        if not quiet:
+            print("WARNING: Could not create or access configured database:", exc)
         raise
 
 
@@ -41,17 +42,28 @@ def ensure_pgvector_extension(engine):
 
 def create_engine_with_fallback(url: str):
     try:
-        create_database_if_missing(url)
+        create_database_if_missing(url, quiet=True)
         engine = create_engine(str(url), pool_pre_ping=True)
         with engine.connect():
             pass
         return engine
-    except OperationalError as exc:
-        print("WARNING: Could not connect to configured database:\n", exc)
-    except Exception as exc:
-        print("WARNING: Postgres database setup failed:\n", exc)
+    except Exception:
+        # If running outside Docker container and 'db' host fails, try 'localhost'
+        parsed_url = make_url(str(url))
+        if parsed_url.host == "db":
+            try:
+                local_url = str(url).replace("@db:", "@localhost:").replace("@db/", "@localhost/")
+                create_database_if_missing(local_url, quiet=False)
+                engine = create_engine(local_url, pool_pre_ping=True)
+                with engine.connect():
+                    pass
+                print(f"Connected to PostgreSQL at localhost:5432 ({parsed_url.database})")
+                return engine
+            except Exception:
+                pass
 
-    print("Falling back to local SQLite database at ./ai_knowledge.db")
+        print("INFO: Postgres database not reachable, falling back to local SQLite at ./ai_knowledge.db")
+
     return create_engine(
         "sqlite:///./ai_knowledge.db",
         connect_args={"check_same_thread": False},
