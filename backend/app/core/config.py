@@ -25,11 +25,10 @@ class Settings(BaseSettings):
     secret_key: str = "change-this-secret-key"
     algorithm: str = "HS256"
     access_token_expire_minutes: int = 60
-    database_url: str = "postgresql://postgres:abc%40123@localhost:5432/ai_knowledge"
+    database_url: str = "postgresql://postgres:abc%40123@localhost:5433/ai_knowledge"
     openai_api_key: str = ""
     openai_model: str = "gpt-4o-mini"
     embedding_model: str = "text-embedding-3-small"
-    # Use local sentence-transformers model for embeddings instead of external API
     use_local_embeddings: bool = True
     local_embedding_model: str = "all-MiniLM-L6-v2"
     frontend_url: str = "http://localhost:4200"
@@ -41,7 +40,3 @@ class Settings(BaseSettings):
 
 
 settings = Settings()
-
-# Generate a new random secret key on every server startup to invalidate tokens on restart
-import secrets
-settings.secret_key = secrets.token_hex(32)

@@ -8,8 +8,8 @@ import psycopg2
 from ..core.config import settings
 
 
-def create_database_if_missing(url: str, quiet: bool = False):
-    parsed_url = make_url(str(url))
+def create_database_if_missing(url, quiet: bool = False):
+    parsed_url = make_url(str(url)) if isinstance(url, str) else url
     db_name = parsed_url.database
     if not db_name or db_name == "postgres":
         return
@@ -47,28 +47,24 @@ def create_engine_with_fallback(url: str):
         with engine.connect():
             pass
         return engine
-    except Exception:
-        # If running outside Docker container and 'db' host fails, try 'localhost'
+    except Exception as e:
+        # If running outside Docker container and 'db'/'ai_knowledge_db' host fails, try 'localhost:5433'
         parsed_url = make_url(str(url))
-        if parsed_url.host == "db":
+        if parsed_url.host in ("db", "ai_knowledge_db"):
             try:
-                local_url = str(url).replace("@db:", "@localhost:").replace("@db/", "@localhost/")
-                create_database_if_missing(local_url, quiet=False)
+                local_url = parsed_url.set(host="localhost", port=5433)
+                create_database_if_missing(local_url, quiet=True)
                 engine = create_engine(local_url, pool_pre_ping=True)
                 with engine.connect():
                     pass
-                print(f"Connected to PostgreSQL at localhost:5432 ({parsed_url.database})")
+                print(f"Connected to Docker PostgreSQL at localhost:5433 ({parsed_url.database})")
                 return engine
-            except Exception:
-                pass
-
-        print("INFO: Postgres database not reachable, falling back to local SQLite at ./ai_knowledge.db")
-
-    return create_engine(
-        "sqlite:///./ai_knowledge.db",
-        connect_args={"check_same_thread": False},
-        pool_pre_ping=True,
-    )
+            except Exception as local_e:
+                print(f"ERROR: Could not connect to PostgreSQL on localhost:5433. Is Docker running? Error: {local_e}")
+                raise local_e
+        
+        print(f"ERROR: Could not connect to PostgreSQL at {url}. Error: {e}")
+        raise e
 
 
 engine = create_engine_with_fallback(settings.database_url)

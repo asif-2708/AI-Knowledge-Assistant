@@ -15,15 +15,14 @@ class ChatService:
         self.db = db
         self.openai_service = OpenAIService()
 
-    def retrieve_relevant_chunks(self, query: str, user_id: int, limit: int = 4) -> List[models.DocumentChunk]:
+    def retrieve_relevant_chunks(self, query: str, user_id: int = None, limit: int = 4) -> List[models.DocumentChunk]:
         query_embedding = self.openai_service.embed_text(query)
-        chunks = (
-            self.db.query(models.DocumentChunk)
-            .join(models.Document)
-            .filter(models.Document.owner_id == user_id)
-            .order_by(models.DocumentChunk.id.asc())
-            .all()
-        )
+        
+        q = self.db.query(models.DocumentChunk).join(models.Document)
+        if user_id is not None:
+            q = q.filter(models.Document.owner_id == user_id)
+            
+        chunks = q.order_by(models.DocumentChunk.id.asc()).all()
         query_lower = query.lower()
         is_api_query = any(word in query_lower for word in [
             "api", "apis", "endpoint", "endpoints", "method", "methods", "route", "routes", "url", "urls"

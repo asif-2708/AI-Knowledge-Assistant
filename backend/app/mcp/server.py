@@ -8,15 +8,12 @@ mcp_server = FastMCP("AI Knowledge Assistant MCP")
 
 
 @mcp_server.tool()
-def search_documents(query: str) -> str:
-    """Search uploaded documents for relevant text snippets based on a semantic search query."""
+def search_documents(query: str, user_id: int = None) -> str:
+    """Search uploaded documents for relevant text snippets based on a semantic search query.
+    Optionally filter by user_id. If omitted, searches across all documents."""
     db = SessionLocal()
     try:
         service = ChatService(db)
-        
-        # Look up first user as default context for search
-        user = db.query(User).first()
-        user_id = user.id if user else 1
         
         chunks = service.retrieve_relevant_chunks(query, user_id=user_id, limit=8)
         if not chunks:
@@ -40,3 +37,7 @@ def summarize_text(text: str) -> str:
         return f"Error summarizing text: {str(e)}"
     finally:
         db.close()
+
+if __name__ == "__main__":
+    # Run as a stdio server for Cursor / Claude Desktop
+    mcp_server.run()
