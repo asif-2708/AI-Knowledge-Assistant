@@ -73,7 +73,7 @@ graph TD
 
 ---
 
-## 📈 Use Cases for Mentors
+## 📈 Use Cases
 
 When presenting this project to your mentor, you can highlight the following concrete enterprise and consumer use cases:
 
